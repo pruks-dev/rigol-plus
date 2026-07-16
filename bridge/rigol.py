@@ -239,15 +239,16 @@ class RigolDevice:
     def scope_set_channel(self, ch: int, param: str, value) -> str:
         """Set a channel parameter and return the new value."""
         cmd_map = {
-            "scale": f":CHANnel{ch}:SCALe {value}",
-            "offset": f":CHANnel{ch}:OFFSet {value}",
-            "display": f":CHANnel{ch}:DISPlay {'ON' if value else 'OFF'}",
-            "coupling": f":CHANnel{ch}:COUPling {value}",
+            "scale": (f":CHANnel{ch}:SCALe {value}", f":CHANnel{ch}:SCALe?"),
+            "offset": (f":CHANnel{ch}:OFFSet {value}", f":CHANnel{ch}:OFFSet?"),
+            "display": (f":CHANnel{ch}:DISPlay {'ON' if value else 'OFF'}", f":CHANnel{ch}:DISPlay?"),
+            "coupling": (f":CHANnel{ch}:COUPling {value}", f":CHANnel{ch}:COUPling?"),
         }
-        cmd = cmd_map.get(param)
-        if cmd:
-            self.write(cmd)
-            return self.query(f":CHANnel{ch}:{param.upper()}?" if param not in {"display"} else cmd)
+        entry = cmd_map.get(param)
+        if entry:
+            set_cmd, query_cmd = entry
+            self.write(set_cmd)
+            return self.query(query_cmd)
         return "ERROR: unknown param"
 
     def scope_set_timebase(self, scale: float) -> str:
