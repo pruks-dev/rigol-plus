@@ -1,4 +1,5 @@
 # Python
+venv/
 bridge/__pycache__/
 bridge/venv/
 bridge/*.pyc
