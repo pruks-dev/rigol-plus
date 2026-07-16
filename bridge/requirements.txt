@@ -1,0 +1,4 @@
+pyvisa>=1.14.0
+pyvisa-py>=0.7.0
+websockets>=13.0
+pyusb>=1.2.0
