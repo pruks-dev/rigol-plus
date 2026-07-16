@@ -270,14 +270,14 @@ class MainWindow(QMainWindow):
         state = device.scope_get_state()
         self.scope_panel.update_state(state)
 
-        # Start waveform workers for enabled channels
+        # Start waveform workers for enabled channels (500ms poll = less timeout pressure)
         for ch in range(1, 5):
             ch_state = state.get("channels", {}).get(f"CH{ch}", {})
             if ch_state.get("enabled"):
-                self._start_waveform(ch, 200)  # 200ms poll for responsiveness
+                self._start_waveform(ch, 500)
 
-        # Start measurement worker on CH1
-        self._measure_worker = MeasureWorker(device, 1, 800)
+        # Start measurement worker on CH1 (1s poll)
+        self._measure_worker = MeasureWorker(device, 1, 1000)
         self._measure_worker.measurements_ready.connect(
             self.scope_panel.set_measurements)
         self._measure_worker.start()

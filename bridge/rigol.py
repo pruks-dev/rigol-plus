@@ -51,8 +51,10 @@ class RigolDevice:
         """Open the VISA resource and query identity."""
         try:
             self.device = self.rm.open_resource(self.address)
-            self.device.timeout = 5000
-            self.identity = self.device.query("*IDN?").strip()
+            self.device.timeout = 10000
+            self.device.read_termination = "\n"
+            self.device.write_termination = "\n"
+            self.identity = self.query("*IDN?")
             parts = self.identity.split(",")
             self.model = parts[1] if len(parts) > 1 else "Unknown"
             logger.info(f"Opened {self.model}: {self.identity}")
@@ -68,13 +70,26 @@ class RigolDevice:
         return self.model.upper().startswith("DG")
 
     def query(self, cmd: str) -> str:
+        """Send SCPI command and read ASCII response. Retries once on timeout/binary noise."""
         if self.device is None:
             return "ERROR: device not open"
-        try:
-            return self.device.query(cmd).strip()
-        except Exception as e:
-            logger.error(f"SCPI query failed: {cmd} -> {e}")
-            return f"ERROR: {e}"
+        for attempt in range(2):
+            try:
+                self.device.write(cmd)
+                raw = self.device.read_raw()
+                # Try ASCII decode; DHO814 sometimes returns trailing binary junk
+                return raw.decode("ascii", errors="ignore").strip()
+            except Exception as e:
+                if attempt == 0:
+                    # Clear device and retry
+                    try:
+                        self.device.write("*CLS")
+                    except Exception:
+                        pass
+                    continue
+                logger.error(f"SCPI query failed: {cmd} -> {e}")
+                return f"ERROR: {e}"
+        return "ERROR: timeout"
 
     def write(self, cmd: str) -> None:
         if self.device is None:
@@ -120,6 +135,7 @@ class RigolDevice:
         try:
             # Reset device parser to clean state
             self.device.write("*CLS")
+            self.device.timeout = 15000  # Waveform fetch needs longer timeout
 
             # Use short-form SCPI — DHO800 series is picky about syntax
             self.device.write(f":WAV:SOURce CHAN{channel}")
@@ -136,6 +152,7 @@ class RigolDevice:
             data = parse_ieee_block(raw)
 
             if not data:
+                self.device.timeout = 10000
                 return None
 
             samples = list(data)  # int 0-255
@@ -157,6 +174,7 @@ class RigolDevice:
 
             # Clear any residual SCPI errors on device
             self.device.write("*CLS")
+            self.device.timeout = 10000
 
             return {
                 "channel": channel,
@@ -175,6 +193,7 @@ class RigolDevice:
             logger.error(f"Waveform fetch CH{channel} failed: {e}")
             try:
                 self.device.write("*CLS")  # clear errors even on failure
+                self.device.timeout = 10000
             except Exception:
                 pass
             return None
@@ -248,7 +267,15 @@ class RigolDevice:
 
     def scope_measure(self, meas_type: str, channel: int = 1) -> str:
         """Quick measurement: VPP, FREQ, PER, RIS, FALL"""
-        return self.query(f":MEASure:{meas_type}? CHANnel{channel}")
+        try:
+            self.device.write("*CLS")
+        except Exception:
+            pass
+        val = self.query(f":MEASure:{meas_type}? CHANnel{channel}")
+        # Strip ERROR prefix if present
+        if val and val.upper().startswith("ERROR"):
+            return "--"
+        return val
 
     # ── Function Generator-specific ─────────────────────────────
 
