@@ -1,7 +1,7 @@
 """QChart-based waveform display for oscilloscope data."""
 
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
-from PySide6.QtCore import Qt, QPointF
+from PySide6.QtCore import Qt, QPointF, QMargins
 from PySide6.QtGui import QPainter, QColor, QPen
 
 # Channel trace colors
@@ -26,7 +26,7 @@ class WaveformChart(QChartView):
         self.chart.setBackgroundBrush(QColor("#0a1620"))
         self.chart.setPlotAreaBackgroundBrush(QColor("#0d1a28"))
         self.chart.legend().hide()
-        self.chart.setMargins(4)
+        self.chart.setMargins(QMargins(4, 4, 4, 4))
 
         super().__init__(self.chart, parent)
         self.setRenderHint(QPainter.Antialiasing)
