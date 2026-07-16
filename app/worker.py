@@ -21,6 +21,8 @@ class WaveformWorker(QThread):
 
     def run(self):
         self._running = True
+        # Give device a moment to settle after connect
+        time.sleep(0.3)
         while self._running:
             try:
                 data = self.device.scope_fetch_waveform(self.channel)

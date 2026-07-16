@@ -266,30 +266,42 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("Disconnected")
 
     def _start_scope(self, device: RigolDevice):
-        # Get initial state — lightweight: just check if CH1 is alive
+        """Start scope without blocking UI — no initial state query."""
+        # Check CH1 state with a single fast query
+        try:
+            ch1_on = device.query(":CHANnel1:DISPlay?").strip() == "1"
+        except Exception:
+            ch1_on = False
+
+        # Enable CH1 only if needed
+        if not ch1_on:
+            try:
+                device.write(":CHANnel1:DISPlay ON")
+            except Exception:
+                pass
+
+        self.scope_panel._ch1_cb.setChecked(True)
+        self.status_bar.showMessage(f"Connected to {device.model} — polling CH1...")
+
+        # Defer state load to avoid blocking
+        QTimer.singleShot(500, lambda: self._load_scope_state(device))
+
+        # Start waveform polling immediately
+        self._start_waveform(1, 500)
+
+        # Start measurements
+        self._measure_worker = MeasureWorker(device, 1, 1000)
+        self._measure_worker.measurements_ready.connect(self.scope_panel.set_measurements)
+        self._measure_worker.error.connect(lambda e: print(f"[MEAS] {e}"))
+        self._measure_worker.start()
+
+    def _load_scope_state(self, device: RigolDevice):
+        """Load full scope state in background after connect."""
         try:
             state = device.scope_get_state()
             self.scope_panel.update_state(state)
-            ch1_on = state.get("channels", {}).get("CH1", {}).get("enabled", False)
         except Exception:
-            ch1_on = False  # if state read fails, assume off
-
-        # Only touch device if CH1 is NOT already enabled
-        if not ch1_on:
-            device.write(":CHANnel1:DISPlay ON")
-            self.scope_panel._ch1_cb.setChecked(True)
-
-        # Always start waveform on CH1
-        self._start_waveform(1, 500)
-        self.status_bar.showMessage(f"Connected — waveform polling CH1...")
-
-        # Start measurement worker on CH1
-        self._measure_worker = MeasureWorker(device, 1, 1000)
-        self._measure_worker.measurements_ready.connect(
-            self.scope_panel.set_measurements)
-        self._measure_worker.error.connect(
-            lambda e: self.status_bar.showMessage(f"Measure error: {e}"))
-        self._measure_worker.start()
+            pass
 
     def _start_fg(self, device: RigolDevice):
         try:
