@@ -266,13 +266,21 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("Disconnected")
 
     def _start_scope(self, device: RigolDevice):
-        # Get initial state
-        state = device.scope_get_state()
-        self.scope_panel.update_state(state)
+        # Get initial state — lightweight: just check if CH1 is alive
+        try:
+            state = device.scope_get_state()
+            self.scope_panel.update_state(state)
+            ch1_on = state.get("channels", {}).get("CH1", {}).get("enabled", False)
+        except Exception:
+            ch1_on = False  # if state read fails, assume off
 
-        # Always start CH1 waveform regardless of state (user can toggle others)
+        # Only touch device if CH1 is NOT already enabled
+        if not ch1_on:
+            device.write(":CHANnel1:DISPlay ON")
+            self.scope_panel._ch1_cb.setChecked(True)
+
+        # Always start waveform on CH1
         self._start_waveform(1, 500)
-        self.scope_panel._ch1_cb.setChecked(True)
         self.status_bar.showMessage(f"Connected — waveform polling CH1...")
 
         # Start measurement worker on CH1

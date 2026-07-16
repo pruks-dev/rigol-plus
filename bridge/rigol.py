@@ -199,7 +199,7 @@ class RigolDevice:
             return None
 
     def scope_get_state(self) -> dict:
-        """Get current scope state (all channels, timebase, trigger). Suppresses SCPI errors."""
+        """Get current scope state (channels, timebase, trigger). Lightweight — query CH1-2 only."""
         state: dict = {"model": self.model, "channels": {}, "timebase": {}, "trigger": {}}
         if not self.is_scope():
             return state
@@ -214,22 +214,26 @@ class RigolDevice:
                 "source": self.query(":TRIGger:EDGE:SOURce?") or "CHAN1",
                 "level": _safe_float(self.query(":TRIGger:EDGE:LEVel?")),
                 "slope": self.query(":TRIGger:EDGE:SLOPe?") or "POS",
-                "mode": "AUTO",  # skip SWEep? — not always supported
+                "mode": "AUTO",
             }
 
-            for ch in range(1, 5):
+            # Only query CH1 + CH2 — fewer queries = fewer timeouts
+            for ch in range(1, 3):
                 try:
                     enabled = self.query(f":CHANnel{ch}:DISPlay?") or "0"
                     state["channels"][f"CH{ch}"] = {
                         "enabled": enabled.strip() == "1",
                         "scale": _safe_float(self.query(f":CHANnel{ch}:SCALe?")),
                         "offset": _safe_float(self.query(f":CHANnel{ch}:OFFSet?")),
-                        "coupling": self.query(f":CHANnel{ch}:COUPling?") or "DC",
+                        "coupling": "DC",  # skip coupling query to save time
                     }
                 except Exception:
                     state["channels"][f"CH{ch}"] = {"enabled": False}
 
-            # Clear any pending SCPI errors on device
+            # CH3-4 default off
+            for ch in range(3, 5):
+                state["channels"][f"CH{ch}"] = {"enabled": False}
+
             self.write("*CLS")
         except Exception as e:
             logger.error(f"Failed to get scope state: {e}")
