@@ -1,15 +1,8 @@
 # Python
 venv/
-bridge/__pycache__/
-bridge/venv/
-bridge/*.pyc
+__pycache__/
+*.pyc
 *.egg-info/
-
-# Node
-frontend/node_modules/
-frontend/out/
-frontend/.next/
-frontend/next-env.d.ts
 
 # OS
 .DS_Store
@@ -20,4 +13,3 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
-__pycache__/
