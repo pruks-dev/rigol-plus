@@ -270,16 +270,17 @@ class MainWindow(QMainWindow):
         state = device.scope_get_state()
         self.scope_panel.update_state(state)
 
-        # Start waveform workers for enabled channels (500ms poll = less timeout pressure)
-        for ch in range(1, 5):
-            ch_state = state.get("channels", {}).get(f"CH{ch}", {})
-            if ch_state.get("enabled"):
-                self._start_waveform(ch, 500)
+        # Always start CH1 waveform regardless of state (user can toggle others)
+        self._start_waveform(1, 500)
+        self.scope_panel._ch1_cb.setChecked(True)
+        self.status_bar.showMessage(f"Connected — waveform polling CH1...")
 
-        # Start measurement worker on CH1 (1s poll)
+        # Start measurement worker on CH1
         self._measure_worker = MeasureWorker(device, 1, 1000)
         self._measure_worker.measurements_ready.connect(
             self.scope_panel.set_measurements)
+        self._measure_worker.error.connect(
+            lambda e: self.status_bar.showMessage(f"Measure error: {e}"))
         self._measure_worker.start()
 
     def _start_fg(self, device: RigolDevice):
@@ -297,6 +298,9 @@ class MainWindow(QMainWindow):
             lambda data, ch=channel: self.scope_panel.update_waveform(
                 ch, data["samples"], data["x_inc"], data["v_scale"]
             )
+        )
+        worker.error.connect(
+            lambda e, ch=channel: print(f"[CH{ch}] {e}")
         )
         self._waveform_workers[channel] = worker
         worker.start()
